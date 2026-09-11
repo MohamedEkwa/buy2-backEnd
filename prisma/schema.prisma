@@ -1,0 +1,408 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// IAM / RBAC
+// =========================================================
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId  String @map("role_id") @db.Uuid
+  feature String @db.VarChar(100)
+  action  String @db.VarChar(20)
+  scope   String @db.VarChar(30)
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, feature, action, scope])
+  @@map("role_permissions")
+}
+
+model User {
+  id                 String   @id @default(uuid()) @db.Uuid
+  roleId             String?  @map("role_id") @db.Uuid
+  email              String   @unique @db.VarChar(320)
+  passwordHash       String?  @map("password_hash") @db.Text
+  status             String   @default("PENDING_SETUP") @db.VarChar(20)
+  mustChangePassword Boolean  @default(true) @map("must_change_password")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  role               Role?               @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  authChallenges     AuthChallenge[]
+  uploadedFiles      File[]               @relation("UploadedFiles")
+  employee           Employee?            @relation("EmployeeUser")
+  recordedViolations EmployeeViolation[]  @relation("ViolationRecorder")
+
+  @@index([roleId], map: "idx_users_role_id")
+  @@map("users")
+}
+
+model AuthChallenge {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  purpose      String    @db.VarChar(30)
+  codeHash     String    @map("code_hash") @db.Text
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  attemptCount Int       @default(0) @map("attempt_count")
+  resendCount  Int       @default(0) @map("resend_count")
+  consumedAt   DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_auth_challenges_user_id")
+  @@index([expiresAt], map: "idx_auth_challenges_expires_at")
+  @@map("auth_challenges")
+}
+
+// =========================================================
+// Files / Documents
+// =========================================================
+
+model File {
+  id               String   @id @default(uuid()) @db.Uuid
+  fileName         String   @map("file_name") @db.VarChar(255)
+  storageKey       String   @unique @map("storage_key") @db.Text
+  mimeType         String?  @map("mime_type") @db.VarChar(100)
+  sizeBytes        BigInt?  @map("size_bytes") @db.BigInt
+  uploadedByUserId String?  @map("uploaded_by_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  uploadedByUser       User?      @relation("UploadedFiles", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  document             Document?
+  profileImageEmployees Employee[] @relation("EmployeeProfileImage")
+
+  @@index([uploadedByUserId], map: "idx_files_uploaded_by_user_id")
+  @@map("files")
+}
+
+model Document {
+  id           String    @id @default(uuid()) @db.Uuid
+  fileId       String    @unique @map("file_id") @db.Uuid
+  documentType String?   @map("document_type") @db.VarChar(50)
+  title        String?   @db.VarChar(200)
+  issuedAt     DateTime? @map("issued_at") @db.Date
+  expiresAt    DateTime? @map("expires_at") @db.Date
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  file                       File                        @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  fixedTaskDocuments         FixedTaskDocument[]
+  employeeDocuments          EmployeeDocument[]
+  employeeViolationDocuments EmployeeViolationDocument[]
+
+  @@index([documentType], map: "idx_documents_document_type")
+  @@map("documents")
+}
+
+// =========================================================
+// Organization Structure (single-tenant)
+// =========================================================
+
+model Department {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(150)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  jobPositions JobPosition[]
+
+  @@map("departments")
+}
+
+model SeniorityLevel {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(100)
+  rank      Int      @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  jobPositions JobPosition[]
+
+  @@map("seniority_levels")
+}
+
+model Qualification {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(150)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  jobPositionQualifications JobPositionQualification[]
+  employeeQualifications    EmployeeQualification[]
+
+  @@map("qualifications")
+}
+
+// =========================================================
+// Job Positions
+// =========================================================
+
+model JobPosition {
+  id                   String   @id @default(uuid()) @db.Uuid
+  departmentId         String   @map("department_id") @db.Uuid
+  seniorityLevelId     String   @map("seniority_level_id") @db.Uuid
+  managerJobPositionId String?  @map("manager_job_position_id") @db.Uuid
+  title                String   @db.VarChar(150)
+  description          String?  @db.Text
+  isActive             Boolean  @default(true) @map("is_active")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  department             Department                 @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  seniorityLevel         SeniorityLevel             @relation(fields: [seniorityLevelId], references: [id], onDelete: Restrict)
+  managerJobPosition     JobPosition?               @relation("JobPositionHierarchy", fields: [managerJobPositionId], references: [id], onDelete: SetNull)
+  managedJobPositions    JobPosition[]              @relation("JobPositionHierarchy")
+  qualifications         JobPositionQualification[]
+  schedulePolicy         JobSchedulePolicy?
+  metricDefinitions      JobMetricDefinition[]
+  fixedTaskDefinitions   FixedTaskDefinition[]
+  employees              Employee[]
+
+  @@unique([departmentId, seniorityLevelId, title])
+  @@index([departmentId], map: "idx_job_positions_department_id")
+  @@index([seniorityLevelId], map: "idx_job_positions_seniority_level_id")
+  @@index([managerJobPositionId], map: "idx_job_positions_manager_job_position_id")
+  @@map("job_positions")
+}
+
+model JobPositionQualification {
+  jobPositionId  String  @map("job_position_id") @db.Uuid
+  qualificationId String @map("qualification_id") @db.Uuid
+  isRequired     Boolean @default(true) @map("is_required")
+
+  jobPosition  JobPosition  @relation(fields: [jobPositionId], references: [id], onDelete: Cascade)
+  qualification Qualification @relation(fields: [qualificationId], references: [id], onDelete: Cascade)
+
+  @@id([jobPositionId, qualificationId])
+  @@index([qualificationId], map: "idx_job_position_qualifications_qualification_id")
+  @@map("job_position_qualifications")
+}
+
+model JobSchedulePolicy {
+  jobPositionId String   @id @map("job_position_id") @db.Uuid
+  scheduleType  String?  @map("schedule_type") @db.VarChar(20)
+  checkInFrom   DateTime? @map("check_in_from") @db.Time(6)
+  checkInTo     DateTime? @map("check_in_to") @db.Time(6)
+  checkOutFrom  DateTime? @map("check_out_from") @db.Time(6)
+  checkOutTo    DateTime? @map("check_out_to") @db.Time(6)
+  hoursPerDay   Decimal? @map("hours_per_day") @db.Decimal(4, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  jobPosition JobPosition @relation(fields: [jobPositionId], references: [id], onDelete: Cascade)
+
+  @@map("job_schedule_policies")
+}
+
+model JobMetricDefinition {
+  id            String   @id @default(uuid()) @db.Uuid
+  jobPositionId String   @map("job_position_id") @db.Uuid
+  name          String   @db.VarChar(150)
+  description   String?  @db.Text
+  measure       String?  @db.VarChar(100)
+  targetValue   Decimal? @map("target_value") @db.Decimal(12, 2)
+  weight        Decimal? @db.Decimal(5, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  jobPosition JobPosition @relation(fields: [jobPositionId], references: [id], onDelete: Cascade)
+
+  @@index([jobPositionId], map: "idx_job_metric_definitions_job_position_id")
+  @@map("job_metric_definitions")
+}
+
+// =========================================================
+// Fixed Tasks
+// =========================================================
+
+model FixedTaskDefinition {
+  id             String    @id @default(uuid()) @db.Uuid
+  jobPositionId  String    @map("job_position_id") @db.Uuid
+  name           String    @db.VarChar(200)
+  description    String?   @db.Text
+  repeatType     String?   @map("repeat_type") @db.VarChar(30)
+  repeatConfig   Json?     @map("repeat_config") @db.JsonB
+  submissionTime DateTime? @map("submission_time") @db.Time(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  jobPosition JobPosition        @relation(fields: [jobPositionId], references: [id], onDelete: Cascade)
+  steps       FixedTaskStep[]
+  documents   FixedTaskDocument[]
+
+  @@index([jobPositionId], map: "idx_fixed_task_definitions_job_position_id")
+  @@map("fixed_task_definitions")
+}
+
+model FixedTaskStep {
+  id          String   @id @default(uuid()) @db.Uuid
+  fixedTaskId String   @map("fixed_task_id") @db.Uuid
+  stepOrder   Int      @map("step_order")
+  description String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  fixedTask FixedTaskDefinition @relation(fields: [fixedTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([fixedTaskId, stepOrder])
+  @@index([fixedTaskId], map: "idx_fixed_task_steps_fixed_task_id")
+  @@map("fixed_task_steps")
+}
+
+model FixedTaskDocument {
+  fixedTaskId String @map("fixed_task_id") @db.Uuid
+  documentId  String @map("document_id") @db.Uuid
+
+  fixedTask FixedTaskDefinition @relation(fields: [fixedTaskId], references: [id], onDelete: Cascade)
+  document  Document            @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@id([fixedTaskId, documentId])
+  @@index([documentId], map: "idx_fixed_task_documents_document_id")
+  @@map("fixed_task_documents")
+}
+
+// =========================================================
+// Employees
+// =========================================================
+
+model Employee {
+  id                 String    @id @default(uuid()) @db.Uuid
+  employeeCode       String    @unique @map("employee_code") @db.VarChar(50)
+  userId             String?   @unique @map("user_id") @db.Uuid
+  firstName          String    @map("first_name") @db.VarChar(100)
+  lastName           String    @map("last_name") @db.VarChar(100)
+  gender             String?   @db.VarChar(20)
+  phone              String?   @db.VarChar(30)
+  profileImageFileId String?   @map("profile_image_file_id") @db.Uuid
+  country            String?   @db.VarChar(100)
+  city               String?   @db.VarChar(100)
+  hireDate           DateTime? @map("hire_date") @db.Date
+  status             String    @default("ACTIVE") @db.VarChar(30)
+  employmentType     String?   @map("employment_type") @db.VarChar(30)
+  experienceYears    Decimal?  @map("experience_years") @db.Decimal(4, 1)
+  jobPositionId      String    @map("job_position_id") @db.Uuid
+  managerId          String?   @map("manager_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user                 User?                    @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
+  profileImage         File?                    @relation("EmployeeProfileImage", fields: [profileImageFileId], references: [id], onDelete: SetNull)
+  jobPosition          JobPosition              @relation(fields: [jobPositionId], references: [id], onDelete: Restrict)
+  manager              Employee?                @relation("EmployeeHierarchy", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates         Employee[]               @relation("EmployeeHierarchy")
+  qualifications       EmployeeQualification[]
+  payroll              EmployeePayroll?
+  documents            EmployeeDocument[]
+  violations           EmployeeViolation[]
+
+  @@index([jobPositionId], map: "idx_employees_job_position_id")
+  @@index([managerId], map: "idx_employees_manager_id")
+  @@index([profileImageFileId], map: "idx_employees_profile_image_file_id")
+  @@map("employees")
+}
+
+model EmployeeQualification {
+  employeeId      String    @map("employee_id") @db.Uuid
+  qualificationId String    @map("qualification_id") @db.Uuid
+  acquiredAt      DateTime? @map("acquired_at") @db.Date
+  expiresAt       DateTime? @map("expires_at") @db.Date
+
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  qualification Qualification @relation(fields: [qualificationId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, qualificationId])
+  @@index([qualificationId], map: "idx_employee_qualifications_qualification_id")
+  @@map("employee_qualifications")
+}
+
+model EmployeePayroll {
+  employeeId             String   @id @map("employee_id") @db.Uuid
+  salaryType             String?  @map("salary_type") @db.VarChar(20)
+  payoutPeriod           String?  @map("payout_period") @db.VarChar(20)
+  payoutDay              String?  @map("payout_day") @db.VarChar(20)
+  workWeekStart          String?  @map("work_week_start") @db.VarChar(10)
+  workWeekEnd            String?  @map("work_week_end") @db.VarChar(10)
+  basePayAmount          Decimal? @map("base_pay_amount") @db.Decimal(12, 2)
+  currencyCode           String?  @map("currency_code") @db.Char(3)
+  overtimeThresholdHours Decimal? @map("overtime_threshold_hours") @db.Decimal(6, 2)
+  overtimePeriod         String?  @map("overtime_period") @db.VarChar(20)
+  overtimeHourlyRate     Decimal? @map("overtime_hourly_rate") @db.Decimal(12, 2)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_payroll")
+}
+
+model EmployeeDocument {
+  employeeId String @map("employee_id") @db.Uuid
+  documentId String @map("document_id") @db.Uuid
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, documentId])
+  @@index([documentId], map: "idx_employee_documents_document_id")
+  @@map("employee_documents")
+}
+
+model EmployeeViolation {
+  id               String   @id @default(uuid()) @db.Uuid
+  employeeId       String   @map("employee_id") @db.Uuid
+  recordedByUserId String?  @map("recorded_by_user_id") @db.Uuid
+  category         String?  @db.VarChar(150)
+  severity         String?  @db.VarChar(20)
+  description      String?  @db.Text
+  witnessStatement String?  @map("witness_statement") @db.Text
+  occurredAt       DateTime @map("occurred_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  employee       Employee                    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  recordedByUser User?                       @relation("ViolationRecorder", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+  documents      EmployeeViolationDocument[]
+
+  @@index([employeeId], map: "idx_employee_violations_employee_id")
+  @@index([recordedByUserId], map: "idx_employee_violations_recorded_by_user_id")
+  @@index([occurredAt], map: "idx_employee_violations_occurred_at")
+  @@map("employee_violations")
+}
+
+model EmployeeViolationDocument {
+  violationId String @map("violation_id") @db.Uuid
+  documentId  String @map("document_id") @db.Uuid
+
+  violation EmployeeViolation @relation(fields: [violationId], references: [id], onDelete: Cascade)
+  document  Document          @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@id([violationId, documentId])
+  @@index([documentId], map: "idx_employee_violation_documents_document_id")
+  @@map("employee_violation_documents")
+}
