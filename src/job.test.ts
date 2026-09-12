@@ -8,7 +8,7 @@ import type {
 
 const mockDepartmentId = "d3b07384-d113-40a2-a3a4-e9106093153a";
 const mockSeniorityLevelId = "e4c18495-e224-51b3-b4b5-f0107104264b";
-const mockJobPositionId = "f5d295a6-f335-62c4-c5c6-01208215375c";
+const mockJobPositionId = "123e4567-e89b-12d3-a456-426614174000";
 
 const mockJobPosition: JobPosition = {
   id: mockJobPositionId,

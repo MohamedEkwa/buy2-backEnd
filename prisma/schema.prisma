@@ -7,20 +7,47 @@ datasource db {
   provider = "postgresql"
 }
 
+// =========================================================
+// Organizations (Multi-tenant)
+// =========================================================
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(150)
+  slug      String   @unique @db.VarChar(150)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  roles              Role[]
+  users              User[]
+  departments        Department[]
+  seniorityLevels    SeniorityLevel[]
+  qualifications     Qualification[]
+  jobPositions       JobPosition[]
+  employees          Employee[]
+
+  @@map("organizations")
+}
+
 // IAM / RBAC
 // =========================================================
 
 model Role {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique @db.VarChar(100)
-  description String?  @db.Text
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  description    String?  @db.Text
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  permissions RolePermission[]
-  users       User[]
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions  RolePermission[]
+  users        User[]
 
+  @@unique([organizationId, name])
+  @@index([organizationId], map: "idx_roles_organization_id")
   @@map("roles")
 }
 
@@ -38,20 +65,24 @@ model RolePermission {
 
 model User {
   id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
   roleId             String?  @map("role_id") @db.Uuid
-  email              String   @unique @db.VarChar(320)
+  email              String   @db.VarChar(320)
   passwordHash       String?  @map("password_hash") @db.Text
   status             String   @default("PENDING_SETUP") @db.VarChar(20)
   mustChangePassword Boolean  @default(true) @map("must_change_password")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   role               Role?               @relation(fields: [roleId], references: [id], onDelete: Restrict)
   authChallenges     AuthChallenge[]
-  uploadedFiles      File[]               @relation("UploadedFiles")
-  employee           Employee?            @relation("EmployeeUser")
-  recordedViolations EmployeeViolation[]  @relation("ViolationRecorder")
+  uploadedFiles      File[]              @relation("UploadedFiles")
+  employee           Employee?           @relation("EmployeeUser")
+  recordedViolations EmployeeViolation[] @relation("ViolationRecorder")
 
+  @@unique([organizationId, email])
+  @@index([organizationId], map: "idx_users_organization_id")
   @@index([roleId], map: "idx_users_role_id")
   @@map("users")
 }
@@ -120,42 +151,55 @@ model Document {
 // =========================================================
 
 model Department {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique @db.VarChar(150)
-  description String?  @db.Text
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(150)
+  description    String?  @db.Text
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   jobPositions JobPosition[]
 
+  @@unique([organizationId, name])
+  @@index([organizationId], map: "idx_departments_organization_id")
   @@map("departments")
 }
 
 model SeniorityLevel {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique @db.VarChar(100)
-  rank      Int      @unique
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  rank           Int
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   jobPositions JobPosition[]
 
+  @@unique([organizationId, name])
+  @@unique([organizationId, rank])
+  @@index([organizationId], map: "idx_seniority_levels_organization_id")
   @@map("seniority_levels")
 }
 
 model Qualification {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique @db.VarChar(150)
-  description String?  @db.Text
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(150)
+  description    String?  @db.Text
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  organization              Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   jobPositionQualifications JobPositionQualification[]
   employeeQualifications    EmployeeQualification[]
 
+  @@unique([organizationId, name])
+  @@index([organizationId], map: "idx_qualifications_organization_id")
   @@map("qualifications")
 }
 
@@ -165,6 +209,7 @@ model Qualification {
 
 model JobPosition {
   id                   String   @id @default(uuid()) @db.Uuid
+  organizationId       String   @map("organization_id") @db.Uuid
   departmentId         String   @map("department_id") @db.Uuid
   seniorityLevelId     String   @map("seniority_level_id") @db.Uuid
   managerJobPositionId String?  @map("manager_job_position_id") @db.Uuid
@@ -174,6 +219,7 @@ model JobPosition {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  organization           Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   department             Department                 @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   seniorityLevel         SeniorityLevel             @relation(fields: [seniorityLevelId], references: [id], onDelete: Restrict)
   managerJobPosition     JobPosition?               @relation("JobPositionHierarchy", fields: [managerJobPositionId], references: [id], onDelete: SetNull)
@@ -184,7 +230,8 @@ model JobPosition {
   fixedTaskDefinitions   FixedTaskDefinition[]
   employees              Employee[]
 
-  @@unique([departmentId, seniorityLevelId, title])
+  @@unique([organizationId, departmentId, seniorityLevelId, title])
+  @@index([organizationId], map: "idx_job_positions_organization_id")
   @@index([departmentId], map: "idx_job_positions_department_id")
   @@index([seniorityLevelId], map: "idx_job_positions_seniority_level_id")
   @@index([managerJobPositionId], map: "idx_job_positions_manager_job_position_id")
@@ -293,7 +340,8 @@ model FixedTaskDocument {
 
 model Employee {
   id                 String    @id @default(uuid()) @db.Uuid
-  employeeCode       String    @unique @map("employee_code") @db.VarChar(50)
+  organizationId     String    @map("organization_id") @db.Uuid
+  employeeCode       String    @map("employee_code") @db.VarChar(50)
   userId             String?   @unique @map("user_id") @db.Uuid
   firstName          String    @map("first_name") @db.VarChar(100)
   lastName           String    @map("last_name") @db.VarChar(100)
@@ -311,6 +359,7 @@ model Employee {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  organization         Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user                 User?                    @relation("EmployeeUser", fields: [userId], references: [id], onDelete: SetNull)
   profileImage         File?                    @relation("EmployeeProfileImage", fields: [profileImageFileId], references: [id], onDelete: SetNull)
   jobPosition          JobPosition              @relation(fields: [jobPositionId], references: [id], onDelete: Restrict)
@@ -321,6 +370,8 @@ model Employee {
   documents            EmployeeDocument[]
   violations           EmployeeViolation[]
 
+  @@unique([organizationId, employeeCode])
+  @@index([organizationId], map: "idx_employees_organization_id")
   @@index([jobPositionId], map: "idx_employees_job_position_id")
   @@index([managerId], map: "idx_employees_manager_id")
   @@index([profileImageFileId], map: "idx_employees_profile_image_file_id")
