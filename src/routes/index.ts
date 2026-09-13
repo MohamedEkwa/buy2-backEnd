@@ -5,10 +5,18 @@ import type { HealthService } from "../modules/health/health.types.js";
 // 💡 تصدير واستيراد عناصر ميزة الـ Job من خلال ملفاتها المباشرة لضمان عدم حدوث مشاكل استيراد
 import { createJobRouter } from "../modules/job/job.router.js";
 import type { JobService } from "../modules/job/job.types.js";
+// 💡 استيراد راوتر قسم department
+import { createDepartmentRouter } from "../modules/department/department.router.js";
+import type { DepartmentService } from "../modules/department/department.types.js";
+// 💡 استيراد راوتر المستويات الوظيفية الجديد
+import { createSeniorityLevelRouter } from "../modules/seniority-level/seniority-level.router.js";
+import type { SeniorityLevelService } from "../modules/seniority-level/seniority-level.types.js";
 
 export type RouteDependencies = {
   healthService?: HealthService;
   jobService?: JobService;
+  departmentService?: DepartmentService;
+  seniorityLevelService?: SeniorityLevelService;
 };
 
 export function createApiRouter(dependencies: RouteDependencies = {}): Router {
@@ -20,5 +28,20 @@ export function createApiRouter(dependencies: RouteDependencies = {}): Router {
     "/jobs",
     createJobRouter({ jobService: dependencies.jobService } as any),
   );
+
+  // تسجيل مسار قسم department
+  router.use(
+    "/departments",
+    createDepartmentRouter({
+      departmentService: dependencies.departmentService,
+    } as any),
+  );
+
+  // تسجيل مسار المستويات الوظيفية الجديد
+  router.use(
+    "/seniority-levels",
+    createSeniorityLevelRouter({ seniorityLevelService: dependencies.seniorityLevelService } as any),
+  );
+
   return router;
 }
