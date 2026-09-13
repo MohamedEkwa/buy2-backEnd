@@ -8,15 +8,19 @@ import type { JobService } from "../modules/job/job.types.js";
 // 💡 استيراد راوتر قسم department
 import { createDepartmentRouter } from "../modules/department/department.router.js";
 import type { DepartmentService } from "../modules/department/department.types.js";
-// 💡 استيراد راوتر المستويات الوظيفية الجديد
+// 💡 استيراد راوتر المستويات الوظيفية
 import { createSeniorityLevelRouter } from "../modules/seniority-level/seniority-level.router.js";
 import type { SeniorityLevelService } from "../modules/seniority-level/seniority-level.types.js";
+// 💡 استيراد راوتر المنظمات الجديد
+import { createOrganizationRouter } from "../modules/organization/organization.router.js";
+import type { OrganizationService } from "../modules/organization/organization.types.js";
 
 export type RouteDependencies = {
   healthService?: HealthService;
   jobService?: JobService;
   departmentService?: DepartmentService;
   seniorityLevelService?: SeniorityLevelService;
+  organizationService?: OrganizationService;
 };
 
 export function createApiRouter(dependencies: RouteDependencies = {}): Router {
@@ -37,10 +41,16 @@ export function createApiRouter(dependencies: RouteDependencies = {}): Router {
     } as any),
   );
 
-  // تسجيل مسار المستويات الوظيفية الجديد
+  // تسجيل مسار المستويات الوظيفية
   router.use(
     "/seniority-levels",
     createSeniorityLevelRouter({ seniorityLevelService: dependencies.seniorityLevelService } as any),
+  );
+
+  // تسجيل مسار المنظمات الجديد
+  router.use(
+    "/organizations",
+    createOrganizationRouter({ organizationService: dependencies.organizationService } as any),
   );
 
   return router;
