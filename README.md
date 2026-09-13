@@ -1,105 +1,191 @@
 # buy2-hrms-api
 
-Backend foundation for the Buy2 HR Management System. It uses Express, TypeScript, Prisma, and PostgreSQL with a feature-first N-tier architecture.
+Backend API for the Buy2 HR Management System. Built with **Express 5**, **TypeScript**, **Prisma 7**, **PostgreSQL 17**, **Zod v4**, **Vitest**. Follows a strict **Feature-First Clean Architecture** (Router → Controller → Service → Repository) with **Multi-Tenant (Organization)** support.
+
+---
+
+## Tech Stack
+- **Runtime:** Node.js 24+ (ESM)
+- **Package Manager:** pnpm 10+
+- **Framework:** Express 5
+- **ORM:** Prisma 7 (PostgreSQL Adapter)
+- **Validation:** Zod 4 (Request/Response + OpenAPI)
+- **Testing:** Vitest + Supertest
+- **Containerization:** Docker / Docker Compose
+
+---
 
 ## Requirements
+- Docker Desktop (with Compose) **running**
+- Or: Node.js 24 LTS, pnpm 10, PostgreSQL 17 (local)
 
-- Docker Desktop with Docker Compose (recommended)
-- Or Node.js 24 LTS and pnpm 10 for host development
+---
 
-## Recommended development workflow: Docker
+## Quick Start (Docker — Recommended)
 
 ```bash
+# 1. Clone & enter
+git clone <REPO_URL>
+cd buy2-backEnd
+
+# 2. Env
 cp .env.example .env
-docker compose up --build
+
+# 3. Build & Start (DB + Migrations + Seed + App)
+docker compose up --build -d
+
+# 4. Verify
+docker compose ps
+# Expect: db (healthy), app (running)
 ```
 
-API: <http://localhost:3000/api/v1/health>
+**Access:**
+- **API:** `http://localhost:3000/api/v1`
+- **Health:** `http://localhost:3000/api/v1/health`
+- **Swagger UI:** `http://localhost:3000/docs`
+- **OpenAPI JSON:** `http://localhost:3000/api/v1/openapi.json`
+- **Postgres:** `localhost:5433` (user: `postgres`, pass: `postgres`, db: `buy2_hrms`)
 
-API documentation: <http://localhost:3000/docs>
+**Default Seed Data (auto-created):**
+- Organization: `buy2` (slug: `buy2`)
+- Super Admin: `admin@buy2.com` / `password123`
+- HR Manager: `hr@buy2.com` / `password123`
+- Departments, Seniority Levels, Qualifications, Job Positions (sample set)
 
-OpenAPI JSON: <http://localhost:3000/api/v1/openapi.json>
+---
 
-PostgreSQL: `localhost:5433`
+## Docker Commands
 
-The app container connects to PostgreSQL at `db:5432`; a host process connects at `localhost:5433`.
-If either default host port is busy, set `API_HOST_PORT` and/or `POSTGRES_HOST_PORT` before `docker compose up`.
-Set `API_DOCS_ENABLED=false` to disable both the Swagger UI and public OpenAPI JSON endpoint. It defaults to `true` for this development-focused foundation; set it explicitly in production deployment configuration.
+| Command | Description |
+|---------|-------------|
+| `docker compose up --build -d` | Full start: build, migrate, seed, run (detached) |
+| `docker compose up -d` | Quick start (cached images) |
+| `docker compose ps` | Container status |
+| `docker compose logs -f app` | Follow app logs (hot reload) |
+| `docker compose down` | Stop & remove containers (keep DB volume) |
+| `docker compose down -v` | **Nuclear reset**: stop + delete DB volume |
 
-Stop the environment:
+---
+
+## Database (Prisma)
+
+Migrations & Seed are **manual**, never auto-run on startup.
 
 ```bash
-docker compose down
-```
-
-Reset local database data:
-
-```bash
-docker compose down -v
-```
-
-Warning: `-v` permanently deletes the local `postgres_data` volume.
-
-### Prisma commands in Docker
-
-Schema migrations are deliberate developer actions and never run on normal application startup.
-
-```bash
+# Run pending migrations (dev)
 docker compose exec app pnpm prisma migrate dev
+
+# Generate Client after schema changes
 docker compose exec app pnpm prisma generate
+
+# Apply migrations (prod/CI)
 docker compose exec app pnpm prisma migrate deploy
+
+# Open Prisma Studio (GUI)
 docker compose exec app pnpm prisma studio
+
+# Re-run seed manually (idempotent)
+docker compose exec app pnpm db:seed
 ```
 
-## Optional workflow: Node.js on the host
+---
+
+## Host Development (Node on Host, DB in Docker)
 
 ```bash
-cp .env.example .env
+# 1. Start Postgres only
 docker compose up db -d
+
+# 2. Install & Generate
 pnpm install
 pnpm prisma:generate
+
+# 3. Migrate & Seed
+pnpm prisma:migrate
+pnpm db:seed
+
+# 4. Dev server (hot reload)
 pnpm dev
 ```
 
-In this workflow, `DATABASE_URL` uses `localhost:5432` as supplied by `.env.example`.
+> `.env.example` points to `localhost:5432` (host-mapped port).
 
-## Useful commands
+---
 
+## Useful Scripts
 ```bash
-pnpm typecheck
-pnpm build
-pnpm test
-pnpm docker:up
-pnpm docker:down
+pnpm typecheck   # TS compile check
+pnpm build       # Production build
+pnpm test        # Run Vitest suite
+pnpm docker:up   # Alias: docker compose up --build
+pnpm docker:down # Alias: docker compose down
 ```
 
-## Architecture and team conventions
+---
 
-Request flow is: Router → Middleware → Controller → Service → Repository → Prisma → PostgreSQL.
+## Architecture & Conventions
 
-1. Routers only declare routes and attach middleware/controllers.
-2. Controllers only adapt HTTP requests and invoke services.
-3. Services contain business logic.
-4. Services may call repositories.
-5. Repositories own Prisma and database access.
-6. Modules communicate through another module's service, never its repository.
-7. Zod validates HTTP input.
-8. Services validate business rules.
-9. PostgreSQL constraints enforce critical data invariants.
-10. Do not add infrastructure or abstraction without a real requirement.
+**Request Flow:** `Router → Middleware → Controller → Service → Repository → Prisma → PostgreSQL`
 
-The initial health module is the only implemented feature. HRMS domain models, migrations, authentication, and business modules are intentionally deferred.
+1. **Routers**: Declare routes, attach middleware/controllers, define OpenAPI metadata via `defineRoute()`.
+2. **Controllers**: Adapt HTTP (req/res), call Services. No business logic.
+3. **Services**: Pure business logic. Call Repositories. Validate rules.
+4. **Repositories**: Own Prisma/database access. Return domain types.
+5. **Modules** communicate via **Services** only — never Repositories directly.
+6. **Validation**: Zod schemas on input (middleware). DB constraints as last line of defense.
+6. **No abstraction** without a real requirement.
 
-## API documentation
+---
 
-Zod schemas and route metadata are the API contract. Swagger JSDoc, checked-in OpenAPI files, and source scanning are not used.
+## Implemented Modules (Multi-Tenant Ready)
 
-To add an endpoint:
+All domain modules are scoped by `organizationId`.
 
-1. Define or update the module's Zod request and response schemas.
-2. Implement the repository, service, and controller.
-3. Declare the endpoint once with `defineRoute()` in the module router, including its method, path, tags, summary, response schemas, optional middleware, and optional `security: [{ bearerAuth: [] }]`.
+| Module | Endpoint | Description |
+|--------|----------|-------------|
+| **Organizations** | `/api/v1/organizations` | Tenant CRUD, slug lookup |
+| **Departments** | `/api/v1/departments` | Org structure units |
+| **Seniority Levels** | `/api/v1/seniority-levels` | Job ranking hierarchy |
+| **Qualifications** | `/api/v1/qualifications` | Skills, degrees, certifications |
+| **Job Positions** | `/api/v1/jobs` | Roles linked to Dept + Level + Quals |
+| **Health** | `/api/v1/health` | Liveness/Readiness probe |
 
-`defineRoute()` registers the Express route, runs the existing Zod validation middleware, and adds the same operation to the single OpenAPI registry. The document is generated once after application routes are mounted. With the configured `/api/v1` OpenAPI server, route metadata uses paths such as `/health`, never `/api/v1/health`.
+---
 
-Swagger UI includes the `bearerAuth` JWT scheme and preserves an entered authorization token while browsing. Use its **Authorize** button to provide a Bearer token for future authenticated routes.
+## API Documentation
+
+**Contract:** Zod Schemas + Route Metadata (`defineRoute`). No Swagger JSDoc, no checked-in OpenAPI files, no source scanning.
+
+**To add an endpoint:**
+1. Define/update Zod request/response schemas in `module/schema.ts`.
+2. Implement Repository → Service → Controller.
+3. Declare route **once** in `module/router.ts` using `defineRoute()` (method, path, tags, summary, response schemas, optional middleware, optional `security: [{ bearerAuth: [] }]`).
+
+`defineRoute()` registers the Express route, runs Zod validation middleware, and adds the operation to the OpenAPI registry. Document is generated once after routes mount.
+
+Swagger UI includes `bearerAuth` JWT scheme. Use **Authorize** button to set Bearer token for authenticated routes.
+
+---
+
+## Project Structure
+```
+src/
+├── config/           # Env & constants
+├── database/         # Prisma client + adapter
+├── middleware/       # Error, NotFound, Validation
+├── modules/          # Feature modules (domain)
+│   ├── organization/
+│   ├── department/
+│   ├── seniority-level/
+│   ├── qualification/
+│   ├── job/
+│   └── health/
+├── routes/           # API router composition
+├── shared/           # Errors, HTTP helpers
+├── app.ts            # Express factory
+└── server.ts         # Entry point
+prisma/
+├── schema.prisma     # Data model (Multi-Tenant)
+├── migrations/       # SQL migrations
+└── seed.sql          # Baseline data (run manually in Studio/psql)
+```
