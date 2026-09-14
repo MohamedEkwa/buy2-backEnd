@@ -60,9 +60,9 @@ docker compose up --build -d
 | ------------------------------ | ------------------------------------------------ |
 | `docker compose up --build -d` | Full start: build, migrate, seed, run (detached) |
 | `docker compose up -d`         | Quick start (cached images)                      |
+| `docker compose down`          | Stop & remove containers (keep DB volume)        |
 | `docker compose ps`            | Container status                                 |
 | `docker compose logs -f app`   | Follow app logs (hot reload)                     |
-| `docker compose down`          | Stop & remove containers (keep DB volume)        |
 | `docker compose down -v`       | **Nuclear reset**: stop + delete DB volume       |
 
 ---
