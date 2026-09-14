@@ -5,6 +5,7 @@ Backend API for the Buy2 HR Management System. Built with **Express 5**, **TypeS
 ---
 
 ## Tech Stack
+
 - **Runtime:** Node.js 24+ (ESM)
 - **Package Manager:** pnpm 10+
 - **Framework:** Express 5
@@ -16,6 +17,7 @@ Backend API for the Buy2 HR Management System. Built with **Express 5**, **TypeS
 ---
 
 ## Requirements
+
 - Docker Desktop (with Compose) **running**
 - Or: Node.js 24 LTS, pnpm 10, PostgreSQL 17 (local)
 
@@ -33,13 +35,10 @@ cp .env.example .env
 
 # 3. Build & Start (DB + Migrations + Seed + App)
 docker compose up --build -d
-
-# 4. Verify
-docker compose ps
-# Expect: db (healthy), app (running)
 ```
 
 **Access:**
+
 - **API:** `http://localhost:3000/api/v1`
 - **Health:** `http://localhost:3000/api/v1/health`
 - **Swagger UI:** `http://localhost:3000/docs`
@@ -47,6 +46,7 @@ docker compose ps
 - **Postgres:** `localhost:5433` (user: `postgres`, pass: `postgres`, db: `buy2_hrms`)
 
 **Default Seed Data (auto-created):**
+
 - Organization: `buy2` (slug: `buy2`)
 - Super Admin: `admin@buy2.com` / `password123`
 - HR Manager: `hr@buy2.com` / `password123`
@@ -56,14 +56,14 @@ docker compose ps
 
 ## Docker Commands
 
-| Command | Description |
-|---------|-------------|
+| Command                        | Description                                      |
+| ------------------------------ | ------------------------------------------------ |
 | `docker compose up --build -d` | Full start: build, migrate, seed, run (detached) |
-| `docker compose up -d` | Quick start (cached images) |
-| `docker compose ps` | Container status |
-| `docker compose logs -f app` | Follow app logs (hot reload) |
-| `docker compose down` | Stop & remove containers (keep DB volume) |
-| `docker compose down -v` | **Nuclear reset**: stop + delete DB volume |
+| `docker compose up -d`         | Quick start (cached images)                      |
+| `docker compose ps`            | Container status                                 |
+| `docker compose logs -f app`   | Follow app logs (hot reload)                     |
+| `docker compose down`          | Stop & remove containers (keep DB volume)        |
+| `docker compose down -v`       | **Nuclear reset**: stop + delete DB volume       |
 
 ---
 
@@ -113,6 +113,7 @@ pnpm dev
 ---
 
 ## Useful Scripts
+
 ```bash
 pnpm typecheck   # TS compile check
 pnpm build       # Production build
@@ -133,7 +134,7 @@ pnpm docker:down # Alias: docker compose down
 4. **Repositories**: Own Prisma/database access. Return domain types.
 5. **Modules** communicate via **Services** only — never Repositories directly.
 6. **Validation**: Zod schemas on input (middleware). DB constraints as last line of defense.
-6. **No abstraction** without a real requirement.
+7. **No abstraction** without a real requirement.
 
 ---
 
@@ -141,14 +142,14 @@ pnpm docker:down # Alias: docker compose down
 
 All domain modules are scoped by `organizationId`.
 
-| Module | Endpoint | Description |
-|--------|----------|-------------|
-| **Organizations** | `/api/v1/organizations` | Tenant CRUD, slug lookup |
-| **Departments** | `/api/v1/departments` | Org structure units |
-| **Seniority Levels** | `/api/v1/seniority-levels` | Job ranking hierarchy |
-| **Qualifications** | `/api/v1/qualifications` | Skills, degrees, certifications |
-| **Job Positions** | `/api/v1/jobs` | Roles linked to Dept + Level + Quals |
-| **Health** | `/api/v1/health` | Liveness/Readiness probe |
+| Module               | Endpoint                   | Description                          |
+| -------------------- | -------------------------- | ------------------------------------ |
+| **Organizations**    | `/api/v1/organizations`    | Tenant CRUD, slug lookup             |
+| **Departments**      | `/api/v1/departments`      | Org structure units                  |
+| **Seniority Levels** | `/api/v1/seniority-levels` | Job ranking hierarchy                |
+| **Qualifications**   | `/api/v1/qualifications`   | Skills, degrees, certifications      |
+| **Job Positions**    | `/api/v1/jobs`             | Roles linked to Dept + Level + Quals |
+| **Health**           | `/api/v1/health`           | Liveness/Readiness probe             |
 
 ---
 
@@ -157,6 +158,7 @@ All domain modules are scoped by `organizationId`.
 **Contract:** Zod Schemas + Route Metadata (`defineRoute`). No Swagger JSDoc, no checked-in OpenAPI files, no source scanning.
 
 **To add an endpoint:**
+
 1. Define/update Zod request/response schemas in `module/schema.ts`.
 2. Implement Repository → Service → Controller.
 3. Declare route **once** in `module/router.ts` using `defineRoute()` (method, path, tags, summary, response schemas, optional middleware, optional `security: [{ bearerAuth: [] }]`).
@@ -168,6 +170,7 @@ Swagger UI includes `bearerAuth` JWT scheme. Use **Authorize** button to set Bea
 ---
 
 ## Project Structure
+
 ```
 src/
 ├── config/           # Env & constants
